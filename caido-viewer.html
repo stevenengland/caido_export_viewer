@@ -1,493 +1,494 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Caido Export Viewer</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
 
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: #1a1a1a;
-            color: #e0e0e0;
-            line-height: 1.4;
-        }
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          sans-serif;
+        background: #1a1a1a;
+        color: #e0e0e0;
+        line-height: 1.4;
+      }
 
-        .container {
-            max-width: 1400px;
-            margin: 0 auto;
-            padding: 20px;
-        }
+      .container {
+        max-width: 1400px;
+        margin: 0 auto;
+        padding: 20px;
+      }
 
-        .header {
-            text-align: center;
-            margin-bottom: 30px;
-        }
+      .header {
+        text-align: center;
+        margin-bottom: 30px;
+      }
 
-        .header h1 {
-            color: #4a9eff;
-            margin-bottom: 10px;
-        }
+      .header h1 {
+        color: #4a9eff;
+        margin-bottom: 10px;
+      }
 
-        .upload-area {
-            border: 2px dashed #444;
-            border-radius: 8px;
-            padding: 40px;
-            text-align: center;
-            margin-bottom: 30px;
-            cursor: pointer;
-            transition: all 0.3s ease;
-        }
+      .upload-area {
+        border: 2px dashed #444;
+        border-radius: 8px;
+        padding: 40px;
+        text-align: center;
+        margin-bottom: 30px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+      }
 
-        .upload-area:hover {
-            border-color: #4a9eff;
-            background: rgba(74, 158, 255, 0.05);
-        }
+      .upload-area:hover {
+        border-color: #4a9eff;
+        background: rgba(74, 158, 255, 0.05);
+      }
 
-        .upload-area.dragover {
-            border-color: #4a9eff;
-            background: rgba(74, 158, 255, 0.1);
-        }
+      .upload-area.dragover {
+        border-color: #4a9eff;
+        background: rgba(74, 158, 255, 0.1);
+      }
 
-        .file-input {
-            display: none;
-        }
+      .file-input {
+        display: none;
+      }
 
-        .requests-table {
-            width: 100%;
-            border-collapse: collapse;
-            background: #2a2a2a;
-            border-radius: 8px;
-            overflow: hidden;
-            margin-bottom: 20px;
-        }
+      .requests-table {
+        width: 100%;
+        border-collapse: collapse;
+        background: #2a2a2a;
+        border-radius: 8px;
+        overflow: hidden;
+        margin-bottom: 20px;
+      }
 
-        .requests-table th,
-        .requests-table td {
-            padding: 12px;
-            text-align: left;
-            border-bottom: 1px solid #444;
-        }
+      .requests-table th,
+      .requests-table td {
+        padding: 12px;
+        text-align: left;
+        border-bottom: 1px solid #444;
+      }
 
-        .requests-table th {
-            background: #333;
-            font-weight: 600;
-            color: #ccc;
-        }
+      .requests-table th {
+        background: #333;
+        font-weight: 600;
+        color: #ccc;
+      }
 
-        .requests-table tbody tr {
-            cursor: pointer;
-            transition: background-color 0.2s;
-        }
+      .requests-table tbody tr {
+        cursor: pointer;
+        transition: background-color 0.2s;
+      }
 
-        .requests-table tbody tr:hover {
-            background: #3a3a3a;
-        }
+      .requests-table tbody tr:hover {
+        background: #3a3a3a;
+      }
 
-        .requests-table tbody tr.selected {
-            background: #4a9eff20;
-        }
+      .requests-table tbody tr.selected {
+        background: #4a9eff20;
+      }
 
-        .method {
-            padding: 4px 8px;
-            border-radius: 4px;
-            font-size: 12px;
-            font-weight: bold;
-        }
+      .method {
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 12px;
+        font-weight: bold;
+      }
 
-        .method.GET { background: #28a745; }
-        .method.POST { background: #ffc107; color: #000; }
-        .method.PUT { background: #17a2b8; }
-        .method.DELETE { background: #dc3545; }
+      .method.GET {
+        background: #28a745;
+      }
+      .method.POST {
+        background: #ffc107;
+        color: #000;
+      }
+      .method.PUT {
+        background: #17a2b8;
+      }
+      .method.DELETE {
+        background: #dc3545;
+      }
 
-        .status {
-            padding: 4px 8px;
-            border-radius: 4px;
-            font-size: 12px;
-            font-weight: bold;
-        }
+      .status {
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 12px;
+        font-weight: bold;
+      }
 
-        .status.success { background: #28a745; }
-        .status.error { background: #dc3545; }
-        .status.redirect { background: #ffc107; color: #000; }
+      .status.success {
+        background: #28a745;
+      }
+      .status.error {
+        background: #dc3545;
+      }
+      .status.redirect {
+        background: #ffc107;
+        color: #000;
+      }
 
-        .details-panel {
-            display: none;
-            background: #2a2a2a;
-            border-radius: 8px;
-            padding: 20px;
-            margin-top: 20px;
-        }
+      .details-panel {
+        display: none;
+        background: #2a2a2a;
+        border-radius: 8px;
+        padding: 20px;
+        margin-top: 20px;
+      }
 
-        .details-panel.active {
-            display: block;
-        }
+      .details-panel.active {
+        display: block;
+      }
 
-        .details-tabs {
-            display: flex;
-            margin-bottom: 20px;
-            border-bottom: 1px solid #444;
-        }
+      .details-container {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 30px;
+      }
 
-        .tab {
-            padding: 10px 20px;
-            cursor: pointer;
-            border-bottom: 2px solid transparent;
-            transition: all 0.3s;
-        }
+      .details-section {
+        background: #1a1a1a;
+        border-radius: 8px;
+        padding: 20px;
+      }
 
-        .tab.active {
-            border-bottom-color: #4a9eff;
-            color: #4a9eff;
-        }
+      .details-section h2 {
+        color: #4a9eff;
+        margin-bottom: 20px;
+        font-size: 1.5em;
+        border-bottom: 2px solid #444;
+        padding-bottom: 10px;
+      }
 
-        .tab-content {
-            display: none;
-        }
+      .details-section h3 {
+        color: #ccc;
+        margin: 20px 0 10px 0;
+        font-size: 1.1em;
+      }
 
-        .tab-content.active {
-            display: block;
-        }
+      .code-block {
+        background: #1a1a1a;
+        border: 1px solid #444;
+        border-radius: 4px;
+        padding: 15px;
+        font-family: "Courier New", monospace;
+        font-size: 13px;
+        overflow-x: auto;
+        white-space: pre-wrap;
+        word-break: break-all;
+      }
 
-        .code-block {
-            background: #1a1a1a;
-            border: 1px solid #444;
-            border-radius: 4px;
-            padding: 15px;
-            font-family: 'Courier New', monospace;
-            font-size: 13px;
-            overflow-x: auto;
-            white-space: pre-wrap;
-            word-break: break-all;
-        }
+      .info-grid {
+        display: grid;
+        grid-template-columns: 150px 1fr;
+        gap: 10px;
+        margin-bottom: 20px;
+      }
 
-        .info-grid {
-            display: grid;
-            grid-template-columns: 150px 1fr;
-            gap: 10px;
-            margin-bottom: 20px;
-        }
+      .info-label {
+        font-weight: bold;
+        color: #aaa;
+      }
 
-        .info-label {
-            font-weight: bold;
-            color: #aaa;
-        }
+      .info-value {
+        color: #e0e0e0;
+      }
 
-        .info-value {
-            color: #e0e0e0;
-        }
+      .hidden {
+        display: none;
+      }
 
-        .hidden {
-            display: none;
-        }
-
-        .error {
-            background: #dc3545;
-            color: white;
-            padding: 10px;
-            border-radius: 4px;
-            margin: 10px 0;
-        }
+      .error {
+        background: #dc3545;
+        color: white;
+        padding: 10px;
+        border-radius: 4px;
+        margin: 10px 0;
+      }
     </style>
-</head>
-<body>
+  </head>
+  <body>
     <div class="container">
-        <div class="header">
-            <h1>Caido Export Viewer</h1>
-            <p>Upload your Caido export JSON file to analyze HTTP requests</p>
+      <div class="header">
+        <h1>Caido Export Viewer</h1>
+        <p>Upload your Caido export JSON file to analyze HTTP requests</p>
+      </div>
+
+      <div class="upload-area" id="uploadArea">
+        <p>Drop your Caido export JSON file here or click to select</p>
+        <input type="file" id="fileInput" class="file-input" accept=".json" />
+      </div>
+
+      <div id="errorMessage" class="error hidden"></div>
+
+      <div id="requestsContainer" class="hidden">
+        <table class="requests-table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Method</th>
+              <th>Host</th>
+              <th>Path</th>
+              <th>Status</th>
+              <th>Response Time</th>
+              <th>Length</th>
+            </tr>
+          </thead>
+          <tbody id="requestsTableBody"></tbody>
+        </table>
+      </div>
+
+      <div id="detailsPanel" class="details-panel">
+        <div class="details-container">
+          <div class="details-section">
+            <h2>Request</h2>
+            <div class="info-grid" id="requestInfo"></div>
+            <h3>Raw Request</h3>
+            <div class="code-block" id="rawRequest"></div>
+            <h3>Request Headers</h3>
+            <div class="code-block" id="requestHeaders"></div>
+          </div>
+
+          <div class="details-section">
+            <h2>Response</h2>
+            <div class="info-grid" id="responseInfo"></div>
+            <h3>Raw Response</h3>
+            <div class="code-block" id="rawResponse"></div>
+            <h3>Response Headers</h3>
+            <div class="code-block" id="responseHeaders"></div>
+          </div>
         </div>
-
-        <div class="upload-area" id="uploadArea">
-            <p>Drop your Caido export JSON file here or click to select</p>
-            <input type="file" id="fileInput" class="file-input" accept=".json">
-        </div>
-
-        <div id="errorMessage" class="error hidden"></div>
-
-        <div id="requestsContainer" class="hidden">
-            <table class="requests-table">
-                <thead>
-                    <tr>
-                        <th>ID</th>
-                        <th>Method</th>
-                        <th>Host</th>
-                        <th>Path</th>
-                        <th>Status</th>
-                        <th>Response Time</th>
-                        <th>Length</th>
-                    </tr>
-                </thead>
-                <tbody id="requestsTableBody">
-                </tbody>
-            </table>
-        </div>
-
-        <div id="detailsPanel" class="details-panel">
-            <div class="details-tabs">
-                <div class="tab active" data-tab="request">Request</div>
-                <div class="tab" data-tab="response">Response</div>
-                <div class="tab" data-tab="headers">Headers</div>
-            </div>
-
-            <div class="tab-content active" id="requestTab">
-                <div class="info-grid" id="requestInfo">
-                </div>
-                <h3>Raw Request</h3>
-                <div class="code-block" id="rawRequest"></div>
-            </div>
-
-            <div class="tab-content" id="responseTab">
-                <div class="info-grid" id="responseInfo">
-                </div>
-                <h3>Raw Response</h3>
-                <div class="code-block" id="rawResponse"></div>
-            </div>
-
-            <div class="tab-content" id="headersTab">
-                <h3>Request Headers</h3>
-                <div class="code-block" id="requestHeaders"></div>
-                <h3>Response Headers</h3>
-                <div class="code-block" id="responseHeaders"></div>
-            </div>
-        </div>
+      </div>
     </div>
 
     <script>
-        let requests = [];
-        let selectedRequest = null;
+      let requests = [];
+      let selectedRequest = null;
 
-        const uploadArea = document.getElementById('uploadArea');
-        const fileInput = document.getElementById('fileInput');
-        const errorMessage = document.getElementById('errorMessage');
-        const requestsContainer = document.getElementById('requestsContainer');
-        const requestsTableBody = document.getElementById('requestsTableBody');
-        const detailsPanel = document.getElementById('detailsPanel');
+      const uploadArea = document.getElementById("uploadArea");
+      const fileInput = document.getElementById("fileInput");
+      const errorMessage = document.getElementById("errorMessage");
+      const requestsContainer = document.getElementById("requestsContainer");
+      const requestsTableBody = document.getElementById("requestsTableBody");
+      const detailsPanel = document.getElementById("detailsPanel");
 
-        // File upload handlers
-        uploadArea.addEventListener('click', () => fileInput.click());
-        uploadArea.addEventListener('dragover', handleDragOver);
-        uploadArea.addEventListener('drop', handleDrop);
-        uploadArea.addEventListener('dragleave', handleDragLeave);
-        fileInput.addEventListener('change', handleFileSelect);
+      // File upload handlers
+      uploadArea.addEventListener("click", () => fileInput.click());
+      uploadArea.addEventListener("dragover", handleDragOver);
+      uploadArea.addEventListener("drop", handleDrop);
+      uploadArea.addEventListener("dragleave", handleDragLeave);
+      fileInput.addEventListener("change", handleFileSelect);
 
-        // Tab switching
-        document.querySelectorAll('.tab').forEach(tab => {
-            tab.addEventListener('click', () => switchTab(tab.dataset.tab));
-        });
+      function handleDragOver(e) {
+        e.preventDefault();
+        uploadArea.classList.add("dragover");
+      }
 
-        function handleDragOver(e) {
-            e.preventDefault();
-            uploadArea.classList.add('dragover');
+      function handleDragLeave(e) {
+        e.preventDefault();
+        uploadArea.classList.remove("dragover");
+      }
+
+      function handleDrop(e) {
+        e.preventDefault();
+        uploadArea.classList.remove("dragover");
+        const files = e.dataTransfer.files;
+        if (files.length > 0) {
+          processFile(files[0]);
+        }
+      }
+
+      function handleFileSelect(e) {
+        const files = e.target.files;
+        if (files.length > 0) {
+          processFile(files[0]);
+        }
+      }
+
+      function processFile(file) {
+        if (!file.name.endsWith(".json")) {
+          showError("Please select a JSON file");
+          return;
         }
 
-        function handleDragLeave(e) {
-            e.preventDefault();
-            uploadArea.classList.remove('dragover');
-        }
-
-        function handleDrop(e) {
-            e.preventDefault();
-            uploadArea.classList.remove('dragover');
-            const files = e.dataTransfer.files;
-            if (files.length > 0) {
-                processFile(files[0]);
+        const reader = new FileReader();
+        reader.onload = function (e) {
+          try {
+            const data = JSON.parse(e.target.result);
+            if (Array.isArray(data)) {
+              requests = data;
+              displayRequests();
+              hideError();
+            } else {
+              showError("Invalid JSON format. Expected an array of requests.");
             }
-        }
+          } catch (error) {
+            showError("Error parsing JSON file: " + error.message);
+          }
+        };
+        reader.readAsText(file);
+      }
 
-        function handleFileSelect(e) {
-            const files = e.target.files;
-            if (files.length > 0) {
-                processFile(files[0]);
-            }
-        }
+      function showError(message) {
+        errorMessage.textContent = message;
+        errorMessage.classList.remove("hidden");
+      }
 
-        function processFile(file) {
-            if (!file.name.endsWith('.json')) {
-                showError('Please select a JSON file');
-                return;
-            }
+      function hideError() {
+        errorMessage.classList.add("hidden");
+      }
 
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                try {
-                    const data = JSON.parse(e.target.result);
-                    if (Array.isArray(data)) {
-                        requests = data;
-                        displayRequests();
-                        hideError();
-                    } else {
-                        showError('Invalid JSON format. Expected an array of requests.');
-                    }
-                } catch (error) {
-                    showError('Error parsing JSON file: ' + error.message);
-                }
-            };
-            reader.readAsText(file);
-        }
+      function displayRequests() {
+        requestsTableBody.innerHTML = "";
 
-        function showError(message) {
-            errorMessage.textContent = message;
-            errorMessage.classList.remove('hidden');
-        }
-
-        function hideError() {
-            errorMessage.classList.add('hidden');
-        }
-
-        function displayRequests() {
-            requestsTableBody.innerHTML = '';
-            
-            requests.forEach((request, index) => {
-                const row = document.createElement('tr');
-                row.innerHTML = `
+        requests.forEach((request, index) => {
+          const row = document.createElement("tr");
+          row.innerHTML = `
                     <td>${request.id || index}</td>
-                    <td><span class="method ${request.method}">${request.method}</span></td>
+                    <td><span class="method ${request.method}">${
+            request.method
+          }</span></td>
                     <td>${request.host}</td>
                     <td>${request.path}</td>
-                    <td><span class="status ${getStatusClass(request.response?.status_code)}">${request.response?.status_code || 'N/A'}</span></td>
+                    <td><span class="status ${getStatusClass(
+                      request.response?.status_code
+                    )}">${request.response?.status_code || "N/A"}</span></td>
                     <td>${formatResponseTime(request.response?.length)} ms</td>
-                    <td>${request.length || 'N/A'}</td>
+                    <td>${request.length || "N/A"}</td>
                 `;
-                
-                row.addEventListener('click', () => selectRequest(index, row));
-                requestsTableBody.appendChild(row);
-            });
 
-            requestsContainer.classList.remove('hidden');
-        }
+          row.addEventListener("click", () => selectRequest(index, row));
+          requestsTableBody.appendChild(row);
+        });
 
-        function getStatusClass(status) {
-            if (!status) return '';
-            if (status >= 200 && status < 300) return 'success';
-            if (status >= 300 && status < 400) return 'redirect';
-            if (status >= 400) return 'error';
-            return '';
-        }
+        requestsContainer.classList.remove("hidden");
+      }
 
-        function formatResponseTime(time) {
-            return time ? time.toString() : 'N/A';
-        }
+      function getStatusClass(status) {
+        if (!status) return "";
+        if (status >= 200 && status < 300) return "success";
+        if (status >= 300 && status < 400) return "redirect";
+        if (status >= 400) return "error";
+        return "";
+      }
 
-        function selectRequest(index, rowElement) {
-            // Remove previous selection
-            document.querySelectorAll('.requests-table tbody tr').forEach(row => {
-                row.classList.remove('selected');
-            });
-            
-            // Add selection to current row
-            rowElement.classList.add('selected');
-            
-            selectedRequest = requests[index];
-            displayRequestDetails();
-            detailsPanel.classList.add('active');
-        }
+      function formatResponseTime(time) {
+        return time ? time.toString() : "N/A";
+      }
 
-        function displayRequestDetails() {
-            if (!selectedRequest) return;
+      function selectRequest(index, rowElement) {
+        // Remove previous selection
+        document.querySelectorAll(".requests-table tbody tr").forEach((row) => {
+          row.classList.remove("selected");
+        });
 
-            // Request info
-            const requestInfo = document.getElementById('requestInfo');
-            requestInfo.innerHTML = `
+        // Add selection to current row
+        rowElement.classList.add("selected");
+
+        selectedRequest = requests[index];
+        displayRequestDetails();
+        detailsPanel.classList.add("active");
+      }
+
+      function displayRequestDetails() {
+        if (!selectedRequest) return;
+
+        // Request info
+        const requestInfo = document.getElementById("requestInfo");
+        requestInfo.innerHTML = `
                 <div class="info-label">Method:</div>
                 <div class="info-value">${selectedRequest.method}</div>
                 <div class="info-label">Host:</div>
-                <div class="info-value">${selectedRequest.host}:${selectedRequest.port}</div>
+                <div class="info-value">${selectedRequest.host}:${
+          selectedRequest.port
+        }</div>
                 <div class="info-label">Path:</div>
                 <div class="info-value">${selectedRequest.path}</div>
                 <div class="info-label">TLS:</div>
-                <div class="info-value">${selectedRequest.is_tls ? 'Yes' : 'No'}</div>
+                <div class="info-value">${
+                  selectedRequest.is_tls ? "Yes" : "No"
+                }</div>
                 <div class="info-label">Length:</div>
                 <div class="info-value">${selectedRequest.length} bytes</div>
             `;
 
-            // Raw request
-            const rawRequest = document.getElementById('rawRequest');
-            rawRequest.textContent = selectedRequest.raw ? atob(selectedRequest.raw) : 'Raw request data not available';
+        // Raw request
+        const rawRequest = document.getElementById("rawRequest");
+        rawRequest.textContent = selectedRequest.raw
+          ? atob(selectedRequest.raw)
+          : "Raw request data not available";
 
-            // Response info
-            const responseInfo = document.getElementById('responseInfo');
-            if (selectedRequest.response) {
-                responseInfo.innerHTML = `
+        // Response info
+        const responseInfo = document.getElementById("responseInfo");
+        if (selectedRequest.response) {
+          responseInfo.innerHTML = `
                     <div class="info-label">Status:</div>
                     <div class="info-value">${selectedRequest.response.status_code}</div>
                     <div class="info-label">Length:</div>
                     <div class="info-value">${selectedRequest.response.length} bytes</div>
                 `;
-            } else {
-                responseInfo.innerHTML = '<div class="info-value">No response data available</div>';
-            }
-
-            // Raw response
-            const rawResponse = document.getElementById('rawResponse');
-            if (selectedRequest.response && selectedRequest.response.raw) {
-                rawResponse.textContent = atob(selectedRequest.response.raw);
-            } else {
-                rawResponse.textContent = 'Raw response data not available';
-            }
-
-            // Headers
-            updateHeaders();
+        } else {
+          responseInfo.innerHTML =
+            '<div class="info-value">No response data available</div>';
         }
 
-        function updateHeaders() {
-            const requestHeaders = document.getElementById('requestHeaders');
-            const responseHeaders = document.getElementById('responseHeaders');
-
-            // Parse request headers from raw data
-            if (selectedRequest.raw) {
-                try {
-                    const decodedRequest = atob(selectedRequest.raw);
-                    const headerEnd = decodedRequest.indexOf('\r\n\r\n');
-                    if (headerEnd !== -1) {
-                        const headerSection = decodedRequest.substring(0, headerEnd);
-                        requestHeaders.textContent = headerSection;
-                    } else {
-                        requestHeaders.textContent = 'Could not parse request headers';
-                    }
-                } catch (e) {
-                    requestHeaders.textContent = 'Error parsing request headers';
-                }
-            } else {
-                requestHeaders.textContent = 'Request headers not available';
-            }
-
-            // Parse response headers from raw data
-            if (selectedRequest.response && selectedRequest.response.raw) {
-                try {
-                    const decodedResponse = atob(selectedRequest.response.raw);
-                    const headerEnd = decodedResponse.indexOf('\r\n\r\n');
-                    if (headerEnd !== -1) {
-                        const headerSection = decodedResponse.substring(0, headerEnd);
-                        responseHeaders.textContent = headerSection;
-                    } else {
-                        responseHeaders.textContent = 'Could not parse response headers';
-                    }
-                } catch (e) {
-                    responseHeaders.textContent = 'Error parsing response headers';
-                }
-            } else {
-                responseHeaders.textContent = 'Response headers not available';
-            }
+        // Raw response
+        const rawResponse = document.getElementById("rawResponse");
+        if (selectedRequest.response && selectedRequest.response.raw) {
+          rawResponse.textContent = atob(selectedRequest.response.raw);
+        } else {
+          rawResponse.textContent = "Raw response data not available";
         }
 
-        function switchTab(tabName) {
-            // Update tab buttons
-            document.querySelectorAll('.tab').forEach(tab => {
-                tab.classList.remove('active');
-            });
-            document.querySelector(`[data-tab="${tabName}"]`).classList.add('active');
+        // Headers
+        updateHeaders();
+      }
 
-            // Update tab content
-            document.querySelectorAll('.tab-content').forEach(content => {
-                content.classList.remove('active');
-            });
-            document.getElementById(tabName + 'Tab').classList.add('active');
+      function updateHeaders() {
+        const requestHeaders = document.getElementById("requestHeaders");
+        const responseHeaders = document.getElementById("responseHeaders");
+
+        // Parse request headers from raw data
+        if (selectedRequest.raw) {
+          try {
+            const decodedRequest = atob(selectedRequest.raw);
+            const headerEnd = decodedRequest.indexOf("\r\n\r\n");
+            if (headerEnd !== -1) {
+              const headerSection = decodedRequest.substring(0, headerEnd);
+              requestHeaders.textContent = headerSection;
+            } else {
+              requestHeaders.textContent = "Could not parse request headers";
+            }
+          } catch (e) {
+            requestHeaders.textContent = "Error parsing request headers";
+          }
+        } else {
+          requestHeaders.textContent = "Request headers not available";
         }
+
+        // Parse response headers from raw data
+        if (selectedRequest.response && selectedRequest.response.raw) {
+          try {
+            const decodedResponse = atob(selectedRequest.response.raw);
+            const headerEnd = decodedResponse.indexOf("\r\n\r\n");
+            if (headerEnd !== -1) {
+              const headerSection = decodedResponse.substring(0, headerEnd);
+              responseHeaders.textContent = headerSection;
+            } else {
+              responseHeaders.textContent = "Could not parse response headers";
+            }
+          } catch (e) {
+            responseHeaders.textContent = "Error parsing response headers";
+          }
+        } else {
+          responseHeaders.textContent = "Response headers not available";
+        }
+      }
     </script>
-</body>
+  </body>
 </html>
