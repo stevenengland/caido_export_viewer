@@ -435,6 +435,87 @@
         updateHeadersAndBodies();
       }
 
+      function prettifyContent(content, headers = "") {
+        if (!content || content.trim() === "") {
+          return content;
+        }
+
+        // Try to detect content type from headers
+        const contentType = headers.toLowerCase();
+
+        // Try JSON formatting
+        if (
+          contentType.includes("application/json") ||
+          contentType.includes("text/json") ||
+          content.trim().startsWith("{") ||
+          content.trim().startsWith("[")
+        ) {
+          try {
+            const parsed = JSON.parse(content);
+            return JSON.stringify(parsed, null, 2);
+          } catch (e) {
+            // Not valid JSON, continue to other formats
+          }
+        }
+
+        // Try XML formatting
+        if (
+          contentType.includes("application/xml") ||
+          contentType.includes("text/xml") ||
+          content.trim().startsWith("<?xml") ||
+          content.trim().startsWith("<")
+        ) {
+          try {
+            return formatXML(content);
+          } catch (e) {
+            // Not valid XML, return original
+          }
+        }
+
+        // For URL-encoded data
+        if (contentType.includes("application/x-www-form-urlencoded")) {
+          try {
+            const params = new URLSearchParams(content);
+            const formatted = [];
+            for (const [key, value] of params) {
+              formatted.push(`${key} = ${value}`);
+            }
+            return formatted.join("\n");
+          } catch (e) {
+            // Return original if parsing fails
+          }
+        }
+
+        return content;
+      }
+
+      function formatXML(xml) {
+        const PADDING = "  ";
+        const reg = /(>)(<)(\/*)/g;
+        let formatted = xml.replace(reg, "$1\r\n$2$3");
+        let pad = 0;
+
+        return formatted
+          .split("\r\n")
+          .map((line) => {
+            let indent = 0;
+            if (line.match(/.+<\/\w[^>]*>$/)) {
+              indent = 0;
+            } else if (line.match(/^<\/\w/) && pad > 0) {
+              pad -= 1;
+            } else if (line.match(/^<\w[^>]*[^\/]>.*$/)) {
+              indent = 1;
+            } else {
+              indent = 0;
+            }
+
+            const padding = PADDING.repeat(pad);
+            pad += indent;
+            return padding + line;
+          })
+          .join("\r\n");
+      }
+
       function updateHeadersAndBodies() {
         const requestHeaders = document.getElementById("requestHeaders");
         const responseHeaders = document.getElementById("responseHeaders");
@@ -451,7 +532,9 @@
               const bodySection = decodedRequest.substring(headerEnd + 4);
 
               requestHeaders.textContent = headerSection;
-              requestBody.textContent = bodySection || "No request body";
+              requestBody.textContent = bodySection
+                ? prettifyContent(bodySection, headerSection)
+                : "No request body";
             } else {
               requestHeaders.textContent = "Could not parse request headers";
               requestBody.textContent = "Could not parse request body";
@@ -475,7 +558,9 @@
               const bodySection = decodedResponse.substring(headerEnd + 4);
 
               responseHeaders.textContent = headerSection;
-              responseBody.textContent = bodySection || "No response body";
+              responseBody.textContent = bodySection
+                ? prettifyContent(bodySection, headerSection)
+                : "No response body";
             } else {
               responseHeaders.textContent = "Could not parse response headers";
               responseBody.textContent = "Could not parse response body";
