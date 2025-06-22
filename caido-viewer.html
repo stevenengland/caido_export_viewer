@@ -248,19 +248,19 @@
           <div class="details-section">
             <h2>Request</h2>
             <div class="info-grid" id="requestInfo"></div>
-            <h3>Raw Request</h3>
-            <div class="code-block" id="rawRequest"></div>
             <h3>Request Headers</h3>
             <div class="code-block" id="requestHeaders"></div>
+            <h3>Request Body</h3>
+            <div class="code-block" id="requestBody"></div>
           </div>
 
           <div class="details-section">
             <h2>Response</h2>
             <div class="info-grid" id="responseInfo"></div>
-            <h3>Raw Response</h3>
-            <div class="code-block" id="rawResponse"></div>
             <h3>Response Headers</h3>
             <div class="code-block" id="responseHeaders"></div>
+            <h3>Response Body</h3>
+            <div class="code-block" id="responseBody"></div>
           </div>
         </div>
       </div>
@@ -417,12 +417,6 @@
                 <div class="info-value">${selectedRequest.length} bytes</div>
             `;
 
-        // Raw request
-        const rawRequest = document.getElementById("rawRequest");
-        rawRequest.textContent = selectedRequest.raw
-          ? atob(selectedRequest.raw)
-          : "Raw request data not available";
-
         // Response info
         const responseInfo = document.getElementById("responseInfo");
         if (selectedRequest.response) {
@@ -437,56 +431,62 @@
             '<div class="info-value">No response data available</div>';
         }
 
-        // Raw response
-        const rawResponse = document.getElementById("rawResponse");
-        if (selectedRequest.response && selectedRequest.response.raw) {
-          rawResponse.textContent = atob(selectedRequest.response.raw);
-        } else {
-          rawResponse.textContent = "Raw response data not available";
-        }
-
-        // Headers
-        updateHeaders();
+        // Headers and Bodies
+        updateHeadersAndBodies();
       }
 
-      function updateHeaders() {
+      function updateHeadersAndBodies() {
         const requestHeaders = document.getElementById("requestHeaders");
         const responseHeaders = document.getElementById("responseHeaders");
+        const requestBody = document.getElementById("requestBody");
+        const responseBody = document.getElementById("responseBody");
 
-        // Parse request headers from raw data
+        // Parse request headers and body from raw data
         if (selectedRequest.raw) {
           try {
             const decodedRequest = atob(selectedRequest.raw);
             const headerEnd = decodedRequest.indexOf("\r\n\r\n");
             if (headerEnd !== -1) {
               const headerSection = decodedRequest.substring(0, headerEnd);
+              const bodySection = decodedRequest.substring(headerEnd + 4);
+
               requestHeaders.textContent = headerSection;
+              requestBody.textContent = bodySection || "No request body";
             } else {
               requestHeaders.textContent = "Could not parse request headers";
+              requestBody.textContent = "Could not parse request body";
             }
           } catch (e) {
             requestHeaders.textContent = "Error parsing request headers";
+            requestBody.textContent = "Error parsing request body";
           }
         } else {
           requestHeaders.textContent = "Request headers not available";
+          requestBody.textContent = "Request body not available";
         }
 
-        // Parse response headers from raw data
+        // Parse response headers and body from raw data
         if (selectedRequest.response && selectedRequest.response.raw) {
           try {
             const decodedResponse = atob(selectedRequest.response.raw);
             const headerEnd = decodedResponse.indexOf("\r\n\r\n");
             if (headerEnd !== -1) {
               const headerSection = decodedResponse.substring(0, headerEnd);
+              const bodySection = decodedResponse.substring(headerEnd + 4);
+
               responseHeaders.textContent = headerSection;
+              responseBody.textContent = bodySection || "No response body";
             } else {
               responseHeaders.textContent = "Could not parse response headers";
+              responseBody.textContent = "Could not parse response body";
             }
           } catch (e) {
             responseHeaders.textContent = "Error parsing response headers";
+            responseBody.textContent = "Error parsing response body";
           }
         } else {
           responseHeaders.textContent = "Response headers not available";
+          responseBody.textContent = "Response body not available";
         }
       }
     </script>
