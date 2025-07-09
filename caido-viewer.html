@@ -558,9 +558,74 @@
               const bodySection = decodedResponse.substring(headerEnd + 4);
 
               responseHeaders.textContent = headerSection;
-              responseBody.textContent = bodySection
+              // Try to prettify and detect if it's JSON
+              let prettified = bodySection
                 ? prettifyContent(bodySection, headerSection)
                 : "No response body";
+              responseBody.textContent = prettified;
+
+              // Add JSON node parsing button if JSON
+              const responseBodyParent = responseBody.parentElement;
+              let parseBtn = responseBodyParent.querySelector(
+                ".parse-json-nodes-btn"
+              );
+              if (parseBtn) parseBtn.remove();
+              let isJson = false;
+              try {
+                const contentType = headerSection.toLowerCase();
+                if (
+                  contentType.includes("application/json") ||
+                  contentType.includes("text/json") ||
+                  (bodySection &&
+                    (bodySection.trim().startsWith("{") ||
+                      bodySection.trim().startsWith("[")))
+                ) {
+                  JSON.parse(bodySection);
+                  isJson = true;
+                }
+              } catch {}
+              if (isJson) {
+                parseBtn = document.createElement("button");
+                parseBtn.textContent = "Parse stringified JSON nodes";
+                parseBtn.className = "parse-json-nodes-btn";
+                parseBtn.style =
+                  "margin-bottom:10px;display:block;background:#222;color:#4a9eff;border:none;padding:8px 12px;border-radius:4px;cursor:pointer;font-size:13px;";
+                responseBodyParent.insertBefore(parseBtn, responseBody);
+                parseBtn.onclick = function () {
+                  try {
+                    let obj = JSON.parse(bodySection);
+                    obj = parseStringifiedJsonNodes(obj);
+                    responseBody.textContent = JSON.stringify(obj, null, 2);
+                  } catch (e) {
+                    responseBody.textContent =
+                      "Error parsing stringified JSON nodes.";
+                  }
+                };
+              }
+              // Recursively parse stringified JSON nodes in an object/array
+              function parseStringifiedJsonNodes(obj) {
+                if (typeof obj === "string") {
+                  try {
+                    const parsed = JSON.parse(obj);
+                    // Only parse if the result is an object or array
+                    if (typeof parsed === "object" && parsed !== null) {
+                      return parseStringifiedJsonNodes(parsed);
+                    }
+                  } catch {}
+                  return obj;
+                } else if (Array.isArray(obj)) {
+                  return obj.map(parseStringifiedJsonNodes);
+                } else if (typeof obj === "object" && obj !== null) {
+                  const result = {};
+                  for (const key in obj) {
+                    if (Object.prototype.hasOwnProperty.call(obj, key)) {
+                      result[key] = parseStringifiedJsonNodes(obj[key]);
+                    }
+                  }
+                  return result;
+                }
+                return obj;
+              }
             } else {
               responseHeaders.textContent = "Could not parse response headers";
               responseBody.textContent = "Could not parse response body";
