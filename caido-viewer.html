@@ -272,8 +272,11 @@
       <div id="hostFilterContainer" class="hidden"></div>
       </div>
       <div id="requestsContainer" class="hidden">
+        <div id="requestsToolbox" style="display:flex;align-items:center;gap:12px;margin-bottom:6px;">
+          <button id="exportSelectedBtn" style="background:#23272e;color:#4a9eff;border:1px solid #4a9eff;border-radius:4px;padding:3px 12px;font-size:12px;cursor:pointer;">Export Selected</button>
+        </div>
         <table class="requests-table" id="mainRequestsTable">
-          <colgroup>
+          <colgroup id="mainColgroup">
             <col style="width: 7%" />
             <col style="width: 10%" />
             <col style="width: 18%" />
@@ -284,6 +287,9 @@
           </colgroup>
           <thead>
             <tr>
+              <th style="width:4%;text-align:center;padding:0 2px;">
+                <input type="checkbox" id="selectAllRequests" checked style="margin:0;vertical-align:middle;" title="Select all" />
+              </th>
               <th>
                 ID
                 <div class="col-resizer"></div>
@@ -313,7 +319,6 @@
               </th>
               <th>
                 Length
-                <div class="col-resizer"></div>
               </th>
             </tr>
           </thead>
@@ -323,7 +328,7 @@
             class="requests-table"
             style="border-top: none; table-layout: fixed; width: 100%"
           >
-            <colgroup>
+            <colgroup id="bodyColgroup">
               <col style="width: 7%" />
               <col style="width: 10%" />
               <col style="width: 18%" />
@@ -508,6 +513,20 @@
       let allHosts = [];
       let hostFilterPopupOpen = false;
 
+      // --- Selection state ---
+      let selectedRequestIds = new Set();
+
+      function syncColgroupWidths() {
+        // Sync colgroup widths between header and body tables
+        const mainColgroup = document.getElementById('mainColgroup');
+        const bodyColgroup = document.getElementById('bodyColgroup');
+        if (!mainColgroup || !bodyColgroup) return;
+        for (let i = 0; i < mainColgroup.children.length; ++i) {
+          const w = mainColgroup.children[i].style.width;
+          if (bodyColgroup.children[i]) bodyColgroup.children[i].style.width = w;
+        }
+      }
+
       function displayRequests() {
         requestsTableBody.innerHTML = "";
 
@@ -530,6 +549,13 @@
           return regexOk && selectedOk;
         });
 
+        // If no selection state yet, select all filtered
+        if (selectedRequestIds.size === 0 && filteredRequests.length > 0) {
+          filteredRequests.forEach((req, idx) => {
+            selectedRequestIds.add(req.id !== undefined ? req.id : idx);
+          });
+        }
+
         // Toggle scrollable class if more than 10 entries
         const wrapper = document.getElementById("requestsTableBodyWrapper");
         if (filteredRequests.length > 10) {
@@ -542,6 +568,31 @@
 
         filteredRequests.forEach((request, index) => {
           const row = document.createElement("tr");
+          
+          // Store reference to original request object for easier access
+          row.__requestObj = request;
+          row.__originalIndex = requests.indexOf(request);
+
+          // Selection checkbox
+          const tdCheck = document.createElement("td");
+          tdCheck.style.textAlign = "center";
+          const cb = document.createElement("input");
+          cb.type = "checkbox";
+          cb.checked = selectedRequestIds.has(request.id !== undefined ? request.id : row.__originalIndex);
+          cb.style.margin = "0";
+          cb.onclick = function(e) {
+            e.stopPropagation();
+            const rid = request.id !== undefined ? request.id : row.__originalIndex;
+            if (cb.checked) {
+              selectedRequestIds.add(rid);
+            } else {
+              selectedRequestIds.delete(rid);
+            }
+            // Update select all checkbox
+            updateSelectAllCheckbox();
+          };
+          tdCheck.appendChild(cb);
+          row.appendChild(tdCheck);
 
           // ID
           const tdId = document.createElement("td");
@@ -577,10 +628,11 @@
 
           // Response Time
           const tdRespTime = document.createElement("td");
-          tdRespTime.textContent = formatResponseTime(
-            request.response && request.response.length
-          );
-          tdRespTime.appendChild(document.createTextNode(" ms"));
+          const responseTime = calculateResponseTime(request);
+          tdRespTime.textContent = responseTime;
+          if (responseTime !== "N/A") {
+            tdRespTime.appendChild(document.createTextNode(" ms"));
+          }
           row.appendChild(tdRespTime);
 
           // Length
@@ -589,7 +641,7 @@
           row.appendChild(tdLength);
 
           row.addEventListener("click", () =>
-            selectRequest(requests.indexOf(request), row)
+            selectRequest(row.__originalIndex, row)
           );
           requestsTableBody.appendChild(row);
         });
@@ -599,6 +651,63 @@
         if (!hostFilterPopupOpen) {
           document.getElementById("hostFilterContainer").classList.add("hidden");
         }
+        updateSelectAllCheckbox();
+        setupExportButton(filteredRequests);
+        syncColgroupWidths();
+      }
+
+      function updateSelectAllCheckbox() {
+        const selectAll = document.getElementById('selectAllRequests');
+        if (!selectAll) return;
+        // Get all visible checkboxes
+        const visibleCbs = Array.from(requestsTableBody.querySelectorAll('tr input[type="checkbox"]'));
+        const allChecked = visibleCbs.length > 0 && visibleCbs.every(cb => cb.checked);
+        selectAll.checked = allChecked;
+        selectAll.indeterminate = !allChecked && visibleCbs.some(cb => cb.checked);
+        selectAll.onclick = function(e) {
+          e.stopPropagation();
+          visibleCbs.forEach(cb => {
+            cb.checked = selectAll.checked;
+            const row = cb.closest('tr');
+            const request = row.__requestObj;
+            const rid = request && (request.id !== undefined ? request.id : row.__originalIndex);
+            if (selectAll.checked && rid !== undefined) {
+              selectedRequestIds.add(rid);
+            } else if (rid !== undefined) {
+              selectedRequestIds.delete(rid);
+            }
+          });
+        };
+      }
+
+      function setupExportButton(filteredRequests) {
+        const btn = document.getElementById('exportSelectedBtn');
+        if (!btn) return;
+        btn.onclick = function() {
+          // Export only visible (filtered) and checked
+          const visibleRows = Array.from(requestsTableBody.children);
+          const exportRows = [];
+          visibleRows.forEach((tr, idx) => {
+            const cb = tr.querySelector('input[type="checkbox"]');
+            if (cb && cb.checked) {
+              // Use the stored request reference
+              const req = tr.__requestObj;
+              if (req) exportRows.push(req);
+            }
+          });
+          const json = JSON.stringify(exportRows, null, 2);
+          const blob = new Blob([json], {type: 'application/json'});
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = 'caido_export_filtered_selected.json';
+          document.body.appendChild(a);
+          a.click();
+          setTimeout(() => {
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+          }, 100);
+        };
       }
 
       function setupHostFilter() {
@@ -637,6 +746,13 @@
         };
         container.appendChild(overlay);
 
+        // --- Resizable popup state ---
+        // Store popup size in a variable (persist across renders)
+        if (!window._hostFilterPopupSize) {
+          window._hostFilterPopupSize = { width: 380, height: 340 };
+        }
+        const popupSize = window._hostFilterPopupSize;
+
         // Popup panel
         const popup = document.createElement("div");
         popup.style.position = "fixed";
@@ -649,7 +765,14 @@
         popup.style.padding = "28px 32px 22px 32px";
         popup.style.zIndex = "1001";
         popup.style.minWidth = "340px";
+        popup.style.minHeight = "220px";
+        popup.style.resize = "none";
         popup.style.boxShadow = "0 8px 32px #000a";
+        popup.style.width = popupSize.width + "px";
+        popup.style.height = popupSize.height + "px";
+        popup.style.overflow = "hidden";
+        popup.style.display = "flex";
+        popup.style.flexDirection = "column";
 
         // Title and close
         const titleRow = document.createElement("div");
@@ -689,13 +812,21 @@
 
         // Host checkbox list
         const listDiv = document.createElement("div");
-        listDiv.style.maxHeight = "160px";
+        listDiv.style.flex = "1 1 auto";
+        listDiv.style.minHeight = "80px";
+        listDiv.style.maxHeight = "100%";
         listDiv.style.overflowY = "auto";
         listDiv.style.background = "#222";
         listDiv.style.border = "1px solid #444";
         listDiv.style.borderRadius = "4px";
         listDiv.style.padding = "8px 12px";
         listDiv.style.marginBottom = '10px';
+
+        // --- Scroll position preservation ---
+        // Restore scroll position if available
+        if (window._hostFilterListScrollTop !== undefined) {
+          setTimeout(() => { listDiv.scrollTop = window._hostFilterListScrollTop; }, 0);
+        }
 
         // Select all checkbox
         const selectAllId = 'hostSelectAll';
@@ -713,6 +844,7 @@
         listDiv.appendChild(document.createElement('br'));
 
         selectAll.addEventListener('change', function() {
+          window._hostFilterListScrollTop = listDiv.scrollTop;
           if (this.checked) {
             hostFilterSelected = [...allHosts];
           } else {
@@ -732,6 +864,7 @@
           cb.checked = hostFilterSelected.includes(host);
           cb.style.marginRight = '6px';
           cb.addEventListener('change', function() {
+            window._hostFilterListScrollTop = listDiv.scrollTop;
             if (this.checked) {
               if (!hostFilterSelected.includes(host)) hostFilterSelected.push(host);
             } else {
@@ -753,8 +886,47 @@
         // Regex input event
         const regexInput = popup.querySelector('#hostRegexInput');
         regexInput.addEventListener('input', function() {
+          window._hostFilterListScrollTop = listDiv.scrollTop;
           hostFilterRegex = this.value;
           displayRequests();
+        });
+
+        // --- Resizable handle ---
+        const resizeHandle = document.createElement('div');
+        resizeHandle.style.position = 'absolute';
+        resizeHandle.style.right = '2px';
+        resizeHandle.style.bottom = '2px';
+        resizeHandle.style.width = '18px';
+        resizeHandle.style.height = '18px';
+        resizeHandle.style.cursor = 'nwse-resize';
+        resizeHandle.style.background = 'linear-gradient(135deg, transparent 60%, #4a9eff 100%)';
+        resizeHandle.title = 'Resize';
+        popup.appendChild(resizeHandle);
+
+        let resizing = false, startX, startY, startW, startH;
+        resizeHandle.addEventListener('mousedown', function(e) {
+          e.preventDefault();
+          resizing = true;
+          startX = e.clientX;
+          startY = e.clientY;
+          startW = popup.offsetWidth;
+          startH = popup.offsetHeight;
+          document.body.style.userSelect = 'none';
+        });
+        document.addEventListener('mousemove', function(e) {
+          if (!resizing) return;
+          let newW = Math.max(320, startW + (e.clientX - startX));
+          let newH = Math.max(180, startH + (e.clientY - startY));
+          popup.style.width = newW + 'px';
+          popup.style.height = newH + 'px';
+        });
+        document.addEventListener('mouseup', function(e) {
+          if (resizing) {
+            resizing = false;
+            window._hostFilterPopupSize.width = popup.offsetWidth;
+            window._hostFilterPopupSize.height = popup.offsetHeight;
+            document.body.style.userSelect = '';
+          }
         });
 
         container.appendChild(popup);
@@ -766,6 +938,16 @@
         if (status >= 300 && status < 400) return "redirect";
         if (status >= 400) return "error";
         return "";
+      }
+
+      function calculateResponseTime(request) {
+        if (request.response && request.created_at && request.response.created_at) {
+          const requestTime = new Date(request.created_at);
+          const responseTime = new Date(request.response.created_at);
+          const diff = responseTime - requestTime;
+          return diff >= 0 ? diff.toString() : "N/A";
+        }
+        return "N/A";
       }
 
       function formatResponseTime(time) {
@@ -959,12 +1141,24 @@
                 ? prettifyContent(bodySection, headerSection)
                 : "No request body";
             } else {
-              requestHeaders.textContent = "Could not parse request headers";
-              requestBody.textContent = "Could not parse request body";
+              // Try with single \n\n if \r\n\r\n not found
+              const altHeaderEnd = decodedRequest.indexOf("\n\n");
+              if (altHeaderEnd !== -1) {
+                const headerSection = decodedRequest.substring(0, altHeaderEnd);
+                const bodySection = decodedRequest.substring(altHeaderEnd + 2);
+                requestHeaders.textContent = headerSection;
+                requestBody.textContent = bodySection
+                  ? prettifyContent(bodySection, headerSection)
+                  : "No request body";
+              } else {
+                requestHeaders.textContent = decodedRequest;
+                requestBody.textContent = "No request body";
+              }
             }
           } catch (e) {
-            requestHeaders.textContent = "Error parsing request headers";
-            requestBody.textContent = "Error parsing request body";
+            console.error("Error parsing request:", e);
+            requestHeaders.textContent = "Error parsing request headers: " + e.message;
+            requestBody.textContent = "Error parsing request body: " + e.message;
           }
         } else {
           requestHeaders.textContent = "Request headers not available";
@@ -1050,12 +1244,24 @@
                 return obj;
               }
             } else {
-              responseHeaders.textContent = "Could not parse response headers";
-              responseBody.textContent = "Could not parse response body";
+              // Try with single \n\n if \r\n\r\n not found
+              const altHeaderEnd = decodedResponse.indexOf("\n\n");
+              if (altHeaderEnd !== -1) {
+                const headerSection = decodedResponse.substring(0, altHeaderEnd);
+                const bodySection = decodedResponse.substring(altHeaderEnd + 2);
+                responseHeaders.textContent = headerSection;
+                responseBody.textContent = bodySection
+                  ? prettifyContent(bodySection, headerSection)
+                  : "No response body";
+              } else {
+                responseHeaders.textContent = decodedResponse;
+                responseBody.textContent = "No response body";
+              }
             }
           } catch (e) {
-            responseHeaders.textContent = "Error parsing response headers";
-            responseBody.textContent = "Error parsing response body";
+            console.error("Error parsing response:", e);
+            responseHeaders.textContent = "Error parsing response headers: " + e.message;
+            responseBody.textContent = "Error parsing response body: " + e.message;
           }
         } else {
           responseHeaders.textContent = "Response headers not available";
@@ -1081,17 +1287,21 @@
       function setupColumnResizing() {
         const mainTable = document.getElementById("mainRequestsTable");
         if (!mainTable) return;
-        const colgroup = mainTable.querySelector("colgroup");
+        const colgroup = document.getElementById("mainColgroup");
         const resizers = mainTable.querySelectorAll(".col-resizer");
-        let startX, startWidth, col, colIdx;
+        let startX, startWidth, col, colIdx, hasMovedMouse = false;
 
         resizers.forEach((resizer, idx) => {
           resizer.onmousedown = function (e) {
             e.preventDefault();
             startX = e.pageX;
-            col = colgroup.children[idx];
-            startWidth = col.offsetWidth;
-            colIdx = idx;
+            hasMovedMouse = false;
+            // The resizer is in column idx+1 (since first column has no resizer)
+            // We want to resize column idx+1
+            col = colgroup.children[idx + 1];
+            const headerCell = resizer.parentElement;
+            startWidth = headerCell.getBoundingClientRect().width;
+            colIdx = idx + 1;
             document.body.style.cursor = "col-resize";
             document.onmousemove = onMouseMove;
             document.onmouseup = onMouseUp;
@@ -1101,23 +1311,38 @@
         function onMouseMove(e) {
           if (!col) return;
           let diff = e.pageX - startX;
-          let newWidth = Math.max(40, startWidth + diff);
-          col.style.width = newWidth + "px";
-          // Set width for body colgroup as well
-          const bodyColgroup = document.querySelector(
-            "#requestsTableBodyWrapper colgroup"
-          );
-          if (bodyColgroup && bodyColgroup.children[colIdx]) {
-            bodyColgroup.children[colIdx].style.width = newWidth + "px";
+          
+          // Only start resizing if the mouse has actually moved
+          if (Math.abs(diff) > 0) {
+            if (!hasMovedMouse) {
+              // First movement - convert to pixels to avoid unit mixing
+              hasMovedMouse = true;
+              col.style.width = startWidth + "px";
+              const bodyColgroup = document.getElementById('bodyColgroup');
+              if (bodyColgroup && bodyColgroup.children[colIdx]) {
+                bodyColgroup.children[colIdx].style.width = startWidth + "px";
+              }
+            }
+            
+            let newWidth = Math.max(40, startWidth + diff);
+            col.style.width = newWidth + "px";
+            // Set for body colgroup as well
+            const bodyColgroup = document.getElementById('bodyColgroup');
+            if (bodyColgroup && bodyColgroup.children[colIdx]) {
+              bodyColgroup.children[colIdx].style.width = newWidth + "px";
+            }
           }
         }
+
         function onMouseUp() {
           document.body.style.cursor = "";
           document.onmousemove = null;
           document.onmouseup = null;
           col = null;
+          hasMovedMouse = false;
         }
       }
+      
       // --- Host filter popup trigger ---
       function setupHostFilterPopupButton() {
         const btn = document.getElementById('hostFilterBtn');
@@ -1140,6 +1365,8 @@
       document.addEventListener("DOMContentLoaded", function() {
         setupColumnResizing();
         setupHostFilterPopupButton();
+        syncColgroupWidths();
+        window.addEventListener('resize', syncColgroupWidths);
       });
     </script>
   </body>
