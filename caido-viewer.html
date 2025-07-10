@@ -66,6 +66,7 @@
         border-radius: 8px;
         overflow: hidden;
         margin-bottom: 20px;
+        table-layout: fixed;
       }
 
       .requests-table th,
@@ -73,12 +74,33 @@
         padding: 12px;
         text-align: left;
         border-bottom: 1px solid #444;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
       }
 
       .requests-table th {
         background: #333;
         font-weight: 600;
         color: #ccc;
+        position: relative;
+        user-select: none;
+      }
+
+      .col-resizer {
+        position: absolute;
+        right: 0;
+        top: 0;
+        width: 6px;
+        height: 100%;
+        cursor: col-resize;
+        z-index: 2;
+        background: transparent;
+        transition: background 0.2s;
+      }
+
+      .col-resizer:hover {
+        background: #4a9eff44;
       }
 
       .requests-table tbody tr {
@@ -210,6 +232,19 @@
         border-radius: 4px;
         margin: 10px 0;
       }
+
+      /* Fix scrollable requests table to fill width */
+      .scrollable-requests-wrapper {
+        max-height: 480px;
+        overflow-y: auto;
+        width: 100%;
+      }
+      .scrollable-requests {
+        /* Remove display:block, let it be default */
+      }
+      .scrollable-requests tr {
+        /* Remove display:table, let it be default */
+      }
     </style>
   </head>
   <body>
@@ -227,20 +262,66 @@
       <div id="errorMessage" class="error hidden"></div>
 
       <div id="requestsContainer" class="hidden">
-        <table class="requests-table">
+        <table class="requests-table" id="mainRequestsTable">
+          <colgroup>
+            <col style="width: 7%" />
+            <col style="width: 10%" />
+            <col style="width: 18%" />
+            <col style="width: 25%" />
+            <col style="width: 10%" />
+            <col style="width: 15%" />
+            <col style="width: 15%" />
+          </colgroup>
           <thead>
             <tr>
-              <th>ID</th>
-              <th>Method</th>
-              <th>Host</th>
-              <th>Path</th>
-              <th>Status</th>
-              <th>Response Time</th>
-              <th>Length</th>
+              <th>
+                ID
+                <div class="col-resizer"></div>
+              </th>
+              <th>
+                Method
+                <div class="col-resizer"></div>
+              </th>
+              <th>
+                Host
+                <div class="col-resizer"></div>
+              </th>
+              <th>
+                Path
+                <div class="col-resizer"></div>
+              </th>
+              <th>
+                Status
+                <div class="col-resizer"></div>
+              </th>
+              <th>
+                Response Time
+                <div class="col-resizer"></div>
+              </th>
+              <th>
+                Length
+                <div class="col-resizer"></div>
+              </th>
             </tr>
           </thead>
-          <tbody id="requestsTableBody"></tbody>
         </table>
+        <div id="requestsTableBodyWrapper">
+          <table
+            class="requests-table"
+            style="border-top: none; table-layout: fixed; width: 100%"
+          >
+            <colgroup>
+              <col style="width: 7%" />
+              <col style="width: 10%" />
+              <col style="width: 18%" />
+              <col style="width: 25%" />
+              <col style="width: 10%" />
+              <col style="width: 15%" />
+              <col style="width: 15%" />
+            </colgroup>
+            <tbody id="requestsTableBody"></tbody>
+          </table>
+        </div>
       </div>
 
       <div id="detailsPanel" class="details-panel">
@@ -410,21 +491,63 @@
       function displayRequests() {
         requestsTableBody.innerHTML = "";
 
+        // Toggle scrollable class if more than 10 entries
+        const wrapper = document.getElementById("requestsTableBodyWrapper");
+        if (requests.length > 10) {
+          requestsTableBody.classList.add("scrollable-requests");
+          if (wrapper) wrapper.classList.add("scrollable-requests-wrapper");
+        } else {
+          requestsTableBody.classList.remove("scrollable-requests");
+          if (wrapper) wrapper.classList.remove("scrollable-requests-wrapper");
+        }
+
         requests.forEach((request, index) => {
           const row = document.createElement("tr");
-          row.innerHTML = `
-                    <td>${request.id || index}</td>
-                    <td><span class="method ${request.method}">${
-            request.method
-          }</span></td>
-                    <td>${request.host}</td>
-                    <td>${request.path}</td>
-                    <td><span class="status ${getStatusClass(
-                      request.response?.status_code
-                    )}">${request.response?.status_code || "N/A"}</span></td>
-                    <td>${formatResponseTime(request.response?.length)} ms</td>
-                    <td>${request.length || "N/A"}</td>
-                `;
+
+          // ID
+          const tdId = document.createElement("td");
+          tdId.textContent = request.id || index;
+          row.appendChild(tdId);
+
+          // Method
+          const tdMethod = document.createElement("td");
+          const methodSpan = document.createElement("span");
+          methodSpan.className = "method " + (request.method || "");
+          methodSpan.textContent = request.method || "";
+          tdMethod.appendChild(methodSpan);
+          row.appendChild(tdMethod);
+
+          // Host
+          const tdHost = document.createElement("td");
+          tdHost.textContent = request.host || "";
+          row.appendChild(tdHost);
+
+          // Path
+          const tdPath = document.createElement("td");
+          tdPath.textContent = request.path || "";
+          row.appendChild(tdPath);
+
+          // Status
+          const tdStatus = document.createElement("td");
+          const statusSpan = document.createElement("span");
+          const statusCode = request.response && request.response.status_code;
+          statusSpan.className = "status " + getStatusClass(statusCode);
+          statusSpan.textContent = statusCode || "N/A";
+          tdStatus.appendChild(statusSpan);
+          row.appendChild(tdStatus);
+
+          // Response Time
+          const tdRespTime = document.createElement("td");
+          tdRespTime.textContent = formatResponseTime(
+            request.response && request.response.length
+          );
+          tdRespTime.appendChild(document.createTextNode(" ms"));
+          row.appendChild(tdRespTime);
+
+          // Length
+          const tdLength = document.createElement("td");
+          tdLength.textContent = request.length || "N/A";
+          row.appendChild(tdLength);
 
           row.addEventListener("click", () => selectRequest(index, row));
           requestsTableBody.appendChild(row);
@@ -749,6 +872,50 @@
           document.body.removeChild(textarea);
         }
       }
+
+      // --- Column resizing logic ---
+      function setupColumnResizing() {
+        const mainTable = document.getElementById("mainRequestsTable");
+        if (!mainTable) return;
+        const colgroup = mainTable.querySelector("colgroup");
+        const resizers = mainTable.querySelectorAll(".col-resizer");
+        let startX, startWidth, col, colIdx;
+
+        resizers.forEach((resizer, idx) => {
+          resizer.onmousedown = function (e) {
+            e.preventDefault();
+            startX = e.pageX;
+            col = colgroup.children[idx];
+            startWidth = col.offsetWidth;
+            colIdx = idx;
+            document.body.style.cursor = "col-resize";
+            document.onmousemove = onMouseMove;
+            document.onmouseup = onMouseUp;
+          };
+        });
+
+        function onMouseMove(e) {
+          if (!col) return;
+          let diff = e.pageX - startX;
+          let newWidth = Math.max(40, startWidth + diff);
+          col.style.width = newWidth + "px";
+          // Set width for body colgroup as well
+          const bodyColgroup = document.querySelector(
+            "#requestsTableBodyWrapper colgroup"
+          );
+          if (bodyColgroup && bodyColgroup.children[colIdx]) {
+            bodyColgroup.children[colIdx].style.width = newWidth + "px";
+          }
+        }
+        function onMouseUp() {
+          document.body.style.cursor = "";
+          document.onmousemove = null;
+          document.onmouseup = null;
+          col = null;
+        }
+      }
+      // Call after DOMContentLoaded
+      document.addEventListener("DOMContentLoaded", setupColumnResizing);
     </script>
   </body>
 </html>
