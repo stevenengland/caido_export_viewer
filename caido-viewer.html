@@ -260,7 +260,8 @@
       </div>
 
       <div id="errorMessage" class="error hidden"></div>
-
+      <div id="hostFilterContainer" class="hidden"></div>
+      </div>
       <div id="requestsContainer" class="hidden">
         <table class="requests-table" id="mainRequestsTable">
           <colgroup>
@@ -282,8 +283,11 @@
                 Method
                 <div class="col-resizer"></div>
               </th>
-              <th>
+              <th style="position:relative;">
                 Host
+                <button id="hostFilterBtn" title="Filter hosts" style="background:none;border:none;cursor:pointer;padding:0 4px;vertical-align:middle;outline:none;">
+                  <span style="font-size:16px;color:#4a9eff;">&#128269;</span>
+                </button>
                 <div class="col-resizer"></div>
               </th>
               <th>
@@ -467,6 +471,7 @@
             const data = JSON.parse(e.target.result);
             if (Array.isArray(data)) {
               requests = data;
+              setupHostFilter();
               displayRequests();
               hideError();
             } else {
@@ -488,12 +493,37 @@
         errorMessage.classList.add("hidden");
       }
 
+      // --- Host filtering state ---
+      let hostFilterRegex = "";
+      let hostFilterSelected = [];
+      let allHosts = [];
+      let hostFilterPopupOpen = false;
+
       function displayRequests() {
         requestsTableBody.innerHTML = "";
 
+        // Filter requests by host
+        let filteredRequests = requests.filter((req) => {
+          let host = req.host || "";
+          // Regex filter
+          let regexOk = true;
+          if (hostFilterRegex) {
+            try {
+              regexOk = new RegExp(hostFilterRegex, "i").test(host);
+            } catch {
+              regexOk = true; // ignore invalid regex
+            }
+          }
+          // Checkbox filter
+          let selectedOk =
+            hostFilterSelected.length === 0 ||
+            hostFilterSelected.includes(host);
+          return regexOk && selectedOk;
+        });
+
         // Toggle scrollable class if more than 10 entries
         const wrapper = document.getElementById("requestsTableBodyWrapper");
-        if (requests.length > 10) {
+        if (filteredRequests.length > 10) {
           requestsTableBody.classList.add("scrollable-requests");
           if (wrapper) wrapper.classList.add("scrollable-requests-wrapper");
         } else {
@@ -501,7 +531,7 @@
           if (wrapper) wrapper.classList.remove("scrollable-requests-wrapper");
         }
 
-        requests.forEach((request, index) => {
+        filteredRequests.forEach((request, index) => {
           const row = document.createElement("tr");
 
           // ID
@@ -549,11 +579,176 @@
           tdLength.textContent = request.length || "N/A";
           row.appendChild(tdLength);
 
-          row.addEventListener("click", () => selectRequest(index, row));
+          row.addEventListener("click", () =>
+            selectRequest(requests.indexOf(request), row)
+          );
           requestsTableBody.appendChild(row);
         });
 
         requestsContainer.classList.remove("hidden");
+        // Hide host filter popup if open
+        if (!hostFilterPopupOpen) {
+          document.getElementById("hostFilterContainer").classList.add("hidden");
+        }
+      }
+
+      function setupHostFilter() {
+        // Get all unique hosts
+        allHosts = Array.from(
+          new Set(requests.map((r) => r.host || "").filter((h) => h))
+        ).sort();
+        hostFilterSelected = [...allHosts];
+        hostFilterRegex = "";
+        renderHostFilterUI();
+      }
+
+      function renderHostFilterUI() {
+        // Render popup overlay
+        const container = document.getElementById("hostFilterContainer");
+        container.innerHTML = "";
+        if (!hostFilterPopupOpen) {
+          container.classList.add("hidden");
+          return;
+        }
+        container.classList.remove("hidden");
+        // Overlay background
+        const overlay = document.createElement("div");
+        overlay.style.position = "fixed";
+        overlay.style.top = "0";
+        overlay.style.left = "0";
+        overlay.style.width = "100vw";
+        overlay.style.height = "100vh";
+        overlay.style.background = "rgba(0,0,0,0.25)";
+        overlay.style.zIndex = "1000";
+        overlay.onclick = function(e) {
+          if (e.target === overlay) {
+            hostFilterPopupOpen = false;
+            renderHostFilterUI();
+          }
+        };
+        container.appendChild(overlay);
+
+        // Popup panel
+        const popup = document.createElement("div");
+        popup.style.position = "fixed";
+        popup.style.top = "90px";
+        popup.style.left = "50%";
+        popup.style.transform = "translateX(-50%)";
+        popup.style.background = "#23272e";
+        popup.style.border = "1.5px solid #4a9eff";
+        popup.style.borderRadius = "10px";
+        popup.style.padding = "28px 32px 22px 32px";
+        popup.style.zIndex = "1001";
+        popup.style.minWidth = "340px";
+        popup.style.boxShadow = "0 8px 32px #000a";
+
+        // Title and close
+        const titleRow = document.createElement("div");
+        titleRow.style.display = "flex";
+        titleRow.style.justifyContent = "space-between";
+        titleRow.style.alignItems = "center";
+        titleRow.style.marginBottom = "18px";
+        const title = document.createElement("span");
+        title.textContent = "Host Filter";
+        title.style.fontWeight = "bold";
+        title.style.fontSize = "1.15em";
+        title.style.color = "#4a9eff";
+        titleRow.appendChild(title);
+        const closeBtn = document.createElement("button");
+        closeBtn.innerHTML = "&#10006;";
+        closeBtn.title = "Close";
+        closeBtn.style.background = "none";
+        closeBtn.style.border = "none";
+        closeBtn.style.color = "#aaa";
+        closeBtn.style.fontSize = "1.2em";
+        closeBtn.style.cursor = "pointer";
+        closeBtn.onclick = function() {
+          hostFilterPopupOpen = false;
+          renderHostFilterUI();
+        };
+        titleRow.appendChild(closeBtn);
+        popup.appendChild(titleRow);
+
+        // Regex input
+        const regexDiv = document.createElement("div");
+        regexDiv.style.marginBottom = "12px";
+        regexDiv.innerHTML = `
+          <label style="font-weight:bold; color:#4a9eff;">Host filter (regex): </label>
+          <input type="text" id="hostRegexInput" style="width:220px; margin-right:10px;" placeholder="Regex (case-insensitive)" value="${hostFilterRegex.replace(/"/g, '&quot;')}">
+        `;
+        popup.appendChild(regexDiv);
+
+        // Host checkbox list
+        const listDiv = document.createElement("div");
+        listDiv.style.maxHeight = "160px";
+        listDiv.style.overflowY = "auto";
+        listDiv.style.background = "#222";
+        listDiv.style.border = "1px solid #444";
+        listDiv.style.borderRadius = "4px";
+        listDiv.style.padding = "8px 12px";
+        listDiv.style.marginBottom = '10px';
+
+        // Select all checkbox
+        const selectAllId = 'hostSelectAll';
+        const selectAll = document.createElement('input');
+        selectAll.type = 'checkbox';
+        selectAll.id = selectAllId;
+        selectAll.checked = hostFilterSelected.length === allHosts.length;
+        selectAll.style.marginRight = '6px';
+        const selectAllLabel = document.createElement('label');
+        selectAllLabel.htmlFor = selectAllId;
+        selectAllLabel.textContent = 'Select All';
+        selectAllLabel.style.fontWeight = 'bold';
+        listDiv.appendChild(selectAll);
+        listDiv.appendChild(selectAllLabel);
+        listDiv.appendChild(document.createElement('br'));
+
+        selectAll.addEventListener('change', function() {
+          if (this.checked) {
+            hostFilterSelected = [...allHosts];
+          } else {
+            hostFilterSelected = [];
+          }
+          renderHostFilterUI();
+          displayRequests();
+        });
+
+        // Host checkboxes
+        allHosts.forEach(host => {
+          const id = 'hostcb_' + btoa(host).replace(/[^a-z0-9]/gi, '');
+          const cb = document.createElement('input');
+          cb.type = 'checkbox';
+          cb.id = id;
+          cb.value = host;
+          cb.checked = hostFilterSelected.includes(host);
+          cb.style.marginRight = '6px';
+          cb.addEventListener('change', function() {
+            if (this.checked) {
+              if (!hostFilterSelected.includes(host)) hostFilterSelected.push(host);
+            } else {
+              hostFilterSelected = hostFilterSelected.filter((h) => h !== host);
+            }
+            renderHostFilterUI();
+            displayRequests();
+          });
+          const label = document.createElement('label');
+          label.htmlFor = id;
+          label.textContent = host;
+          label.style.marginRight = '6px';
+          listDiv.appendChild(cb);
+          listDiv.appendChild(label);
+          listDiv.appendChild(document.createElement('br'));
+        });
+        popup.appendChild(listDiv);
+
+        // Regex input event
+        const regexInput = popup.querySelector('#hostRegexInput');
+        regexInput.addEventListener('input', function() {
+          hostFilterRegex = this.value;
+          displayRequests();
+        });
+
+        container.appendChild(popup);
       }
 
       function getStatusClass(status) {
@@ -914,8 +1109,29 @@
           col = null;
         }
       }
+      // --- Host filter popup trigger ---
+      function setupHostFilterPopupButton() {
+        const btn = document.getElementById('hostFilterBtn');
+        if (!btn) return;
+        btn.onclick = function(e) {
+          e.stopPropagation();
+          hostFilterPopupOpen = true;
+          renderHostFilterUI();
+        };
+        // Hide popup on outside click (except popup itself)
+        document.addEventListener('mousedown', function(ev) {
+          const popup = document.querySelector('#hostFilterContainer > div:last-child');
+          if (hostFilterPopupOpen && popup && !popup.contains(ev.target) && ev.target !== btn) {
+            hostFilterPopupOpen = false;
+            renderHostFilterUI();
+          }
+        });
+      }
       // Call after DOMContentLoaded
-      document.addEventListener("DOMContentLoaded", setupColumnResizing);
+      document.addEventListener("DOMContentLoaded", function() {
+        setupColumnResizing();
+        setupHostFilterPopupButton();
+      });
     </script>
   </body>
 </html>
