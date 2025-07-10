@@ -248,18 +248,82 @@
           <div class="details-section">
             <h2>Request</h2>
             <div class="info-grid" id="requestInfo"></div>
-            <h3>Request Headers</h3>
+            <div
+              style="
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                margin-top: 20px;
+              "
+            >
+              <h3 style="margin: 0">Request Headers</h3>
+              <button
+                class="copy-btn"
+                id="copyRequestHeadersBtn"
+                title="Copy headers to clipboard"
+              >
+                📋
+              </button>
+            </div>
             <div class="code-block" id="requestHeaders"></div>
-            <h3>Request Body</h3>
+            <div
+              style="
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                margin-top: 20px;
+              "
+            >
+              <h3 style="margin: 0">Request Body</h3>
+              <button
+                class="copy-btn"
+                id="copyRequestBodyBtn"
+                title="Copy body to clipboard"
+              >
+                📋
+              </button>
+            </div>
             <div class="code-block" id="requestBody"></div>
           </div>
 
           <div class="details-section">
             <h2>Response</h2>
             <div class="info-grid" id="responseInfo"></div>
-            <h3>Response Headers</h3>
+            <div
+              style="
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                margin-top: 20px;
+              "
+            >
+              <h3 style="margin: 0">Response Headers</h3>
+              <button
+                class="copy-btn"
+                id="copyResponseHeadersBtn"
+                title="Copy headers to clipboard"
+              >
+                📋
+              </button>
+            </div>
             <div class="code-block" id="responseHeaders"></div>
-            <h3>Response Body</h3>
+            <div
+              style="
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                margin-top: 20px;
+              "
+            >
+              <h3 style="margin: 0">Response Body</h3>
+              <button
+                class="copy-btn"
+                id="copyResponseBodyBtn"
+                title="Copy body to clipboard"
+              >
+                📋
+              </button>
+            </div>
             <div class="code-block" id="responseBody"></div>
           </div>
         </div>
@@ -433,6 +497,38 @@
 
         // Headers and Bodies
         updateHeadersAndBodies();
+
+        // Setup copy buttons
+        setTimeout(() => {
+          const copyRequestHeadersBtn = document.getElementById(
+            "copyRequestHeadersBtn"
+          );
+          const copyRequestBodyBtn =
+            document.getElementById("copyRequestBodyBtn");
+          const copyResponseHeadersBtn = document.getElementById(
+            "copyResponseHeadersBtn"
+          );
+          const copyResponseBodyBtn = document.getElementById(
+            "copyResponseBodyBtn"
+          );
+          const requestHeaders = document.getElementById("requestHeaders");
+          const requestBody = document.getElementById("requestBody");
+          const responseHeaders = document.getElementById("responseHeaders");
+          const responseBody = document.getElementById("responseBody");
+
+          if (copyRequestHeadersBtn)
+            copyRequestHeadersBtn.onclick = () =>
+              copyToClipboard(requestHeaders.textContent);
+          if (copyRequestBodyBtn)
+            copyRequestBodyBtn.onclick = () =>
+              copyToClipboard(requestBody.textContent);
+          if (copyResponseHeadersBtn)
+            copyResponseHeadersBtn.onclick = () =>
+              copyToClipboard(responseHeaders.textContent);
+          if (copyResponseBodyBtn)
+            copyResponseBodyBtn.onclick = () =>
+              copyToClipboard(responseBody.textContent);
+        }, 0);
       }
 
       function prettifyContent(content, headers = "") {
@@ -637,6 +733,20 @@
         } else {
           responseHeaders.textContent = "Response headers not available";
           responseBody.textContent = "Response body not available";
+        }
+      }
+
+      function copyToClipboard(text) {
+        if (navigator.clipboard) {
+          navigator.clipboard.writeText(text);
+        } else {
+          // fallback for older browsers
+          const textarea = document.createElement("textarea");
+          textarea.value = text;
+          document.body.appendChild(textarea);
+          textarea.select();
+          document.execCommand("copy");
+          document.body.removeChild(textarea);
         }
       }
     </script>
