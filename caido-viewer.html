@@ -254,6 +254,98 @@
       .scrollable-requests tr {
         /* Remove display:table, let it be default */
       }
+
+      /* Content search styles */
+      .content-search-input {
+        width: 100%;
+        padding: 6px 8px;
+        background: #1a1a1a;
+        border: 1px solid #444;
+        border-radius: 4px;
+        color: #e0e0e0;
+        font-size: 12px;
+        font-family: 'Courier New', monospace;
+        margin-bottom: 10px;
+      }
+
+      .search-options {
+        display: flex;
+        gap: 15px;
+        margin-bottom: 12px;
+        font-size: 12px;
+      }
+
+      .search-scope-list {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        padding: 10px;
+        background: #1a1a1a;
+        border-radius: 4px;
+        margin-bottom: 12px;
+        max-height: 200px;
+        overflow-y: auto;
+      }
+
+      .search-scope-label {
+        font-size: 12px;
+        color: #ccc;
+        margin-left: 6px;
+      }
+
+      .match-indicator {
+        font-size: 9px;
+        background: #4a9eff;
+        color: #fff;
+        padding: 2px 4px;
+        border-radius: 3px;
+        margin-left: 4px;
+        display: inline-block;
+      }
+
+      .search-section-title {
+        font-weight: bold;
+        color: #4a9eff;
+        margin-bottom: 8px;
+        font-size: 12px;
+      }
+
+      .search-buttons {
+        display: flex;
+        gap: 10px;
+        justify-content: flex-end;
+        margin-top: 15px;
+      }
+
+      .search-btn {
+        padding: 5px 14px;
+        background: #23272e;
+        color: #4a9eff;
+        border: 1px solid #4a9eff;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 12px;
+      }
+
+      .search-btn:hover {
+        background: #4a9eff;
+        color: #fff;
+      }
+
+      .copy-btn {
+        background: #222;
+        color: #4a9eff;
+        border: none;
+        padding: 4px 8px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 14px;
+      }
+
+      .copy-btn:hover {
+        background: #4a9eff;
+        color: #fff;
+      }
     </style>
   </head>
   <body>
@@ -270,6 +362,7 @@
 
       <div id="errorMessage" class="error hidden"></div>
       <div id="hostFilterContainer" class="hidden"></div>
+      <div id="contentSearchContainer" class="hidden"></div>
       </div>
       <div id="requestsContainer" class="hidden">
         <div id="requestsToolbox" style="display:flex;align-items:center;gap:12px;margin-bottom:6px;">
@@ -296,6 +389,9 @@
               </th>
               <th>
                 Method
+                <button id="contentSearchBtn" title="Search content" style="background:none;border:none;cursor:pointer;padding:0 4px;vertical-align:middle;outline:none;">
+                  <span style="font-size:16px;color:#4a9eff;">🔍</span>
+                </button>
                 <div class="col-resizer"></div>
               </th>
               <th style="position:relative;">
@@ -485,6 +581,7 @@
             const data = JSON.parse(e.target.result);
             if (Array.isArray(data)) {
               requests = data;
+              parsedDataCache.clear(); // Clear cache when loading new file
               setupHostFilter();
               displayRequests();
               hideError();
@@ -512,6 +609,23 @@
       let hostFilterSelected = [];
       let allHosts = [];
       let hostFilterPopupOpen = false;
+
+      // --- Content search state ---
+      let contentSearchPattern = "";
+      let contentSearchIsRegex = false;
+      let contentSearchCaseSensitive = false;
+      let contentSearchScope = {
+        requestMethod: true,
+        requestHeaders: true,
+        requestBody: true,
+        responseHeaders: true,
+        responseBody: true
+      };
+      let contentSearchShowMatches = true;
+      let contentSearchPopupOpen = false;
+
+      // --- Performance cache ---
+      let parsedDataCache = new Map();
 
       // --- Selection state ---
       let selectedRequestIds = new Set();
@@ -548,6 +662,9 @@
             hostFilterSelected.includes(host);
           return regexOk && selectedOk;
         });
+
+        // Filter by content search
+        filteredRequests = filteredRequests.filter(req => matchesContentSearch(req));
 
         // If no selection state yet, select all filtered
         if (selectedRequestIds.size === 0 && filteredRequests.length > 0) {
@@ -605,6 +722,16 @@
           methodSpan.className = "method " + (request.method || "");
           methodSpan.textContent = request.method || "";
           tdMethod.appendChild(methodSpan);
+
+          // Add match indicator if present
+          if (contentSearchShowMatches && request._matchedFields && request._matchedFields.length > 0) {
+            const badge = document.createElement('span');
+            badge.className = 'match-indicator';
+            badge.textContent = request._matchedFields.join(', ');
+            badge.title = 'Matched fields: ' + request._matchedFields.join(', ');
+            tdMethod.appendChild(badge);
+          }
+
           row.appendChild(tdMethod);
 
           // Host
@@ -930,6 +1057,357 @@
         });
 
         container.appendChild(popup);
+      }
+
+      // --- Content search functions ---
+      function getParsedRequestData(request) {
+        const cacheKey = request.id !== undefined ? request.id : request;
+
+        // Return cached if available
+        if (parsedDataCache.has(cacheKey)) {
+          return parsedDataCache.get(cacheKey);
+        }
+
+        // Parse and cache
+        const parsed = {
+          requestHeaders: '',
+          requestBody: '',
+          responseHeaders: '',
+          responseBody: ''
+        };
+
+        // Parse request (reuse logic from updateHeadersAndBodies)
+        if (request.raw) {
+          try {
+            const decoded = atob(request.raw);
+            const headerEnd = decoded.indexOf('\r\n\r\n');
+            if (headerEnd !== -1) {
+              parsed.requestHeaders = decoded.substring(0, headerEnd);
+              parsed.requestBody = decoded.substring(headerEnd + 4);
+            } else {
+              const altHeaderEnd = decoded.indexOf('\n\n');
+              if (altHeaderEnd !== -1) {
+                parsed.requestHeaders = decoded.substring(0, altHeaderEnd);
+                parsed.requestBody = decoded.substring(altHeaderEnd + 2);
+              } else {
+                parsed.requestHeaders = decoded;
+              }
+            }
+          } catch (e) {
+            console.error('Error parsing request:', e);
+          }
+        }
+
+        // Parse response
+        if (request.response && request.response.raw) {
+          try {
+            const decoded = atob(request.response.raw);
+            const headerEnd = decoded.indexOf('\r\n\r\n');
+            if (headerEnd !== -1) {
+              parsed.responseHeaders = decoded.substring(0, headerEnd);
+              parsed.responseBody = decoded.substring(headerEnd + 4);
+            } else {
+              const altHeaderEnd = decoded.indexOf('\n\n');
+              if (altHeaderEnd !== -1) {
+                parsed.responseHeaders = decoded.substring(0, altHeaderEnd);
+                parsed.responseBody = decoded.substring(altHeaderEnd + 2);
+              } else {
+                parsed.responseHeaders = decoded;
+              }
+            }
+          } catch (e) {
+            console.error('Error parsing response:', e);
+          }
+        }
+
+        parsedDataCache.set(cacheKey, parsed);
+        return parsed;
+      }
+
+      function createLiteralMatcher(pattern, caseSensitive) {
+        const searchStr = caseSensitive ? pattern : pattern.toLowerCase();
+        return {
+          test: (text) => {
+            if (!text) return false;
+            const testStr = caseSensitive ? text : text.toLowerCase();
+            return testStr.includes(searchStr);
+          }
+        };
+      }
+
+      function createMatcher(pattern, isRegex, caseSensitive) {
+        if (isRegex) {
+          try {
+            const flags = caseSensitive ? '' : 'i';
+            return new RegExp(pattern, flags);
+          } catch (e) {
+            // Invalid regex - fall back to literal search
+            console.warn('Invalid regex, using literal search:', e.message);
+            return createLiteralMatcher(pattern, caseSensitive);
+          }
+        }
+        return createLiteralMatcher(pattern, caseSensitive);
+      }
+
+      function matchesContentSearch(request) {
+        // No pattern = no filter (show all)
+        if (!contentSearchPattern) return true;
+
+        // No scope selected = show all
+        const hasScope = Object.values(contentSearchScope).some(v => v);
+        if (!hasScope) return true;
+
+        // Get cached or parse request/response data
+        const parsed = getParsedRequestData(request);
+
+        // Create matcher (regex or plain text)
+        const matcher = createMatcher(
+          contentSearchPattern,
+          contentSearchIsRegex,
+          contentSearchCaseSensitive
+        );
+
+        // Check each selected scope (OR logic between scopes)
+        let matched = false;
+        let matchedFields = [];
+
+        if (contentSearchScope.requestMethod && matcher.test(request.method || '')) {
+          matched = true;
+          matchedFields.push('Method');
+        }
+        if (contentSearchScope.requestHeaders && matcher.test(parsed.requestHeaders)) {
+          matched = true;
+          matchedFields.push('Req-Headers');
+        }
+        if (contentSearchScope.requestBody && matcher.test(parsed.requestBody)) {
+          matched = true;
+          matchedFields.push('Req-Body');
+        }
+        if (contentSearchScope.responseHeaders && matcher.test(parsed.responseHeaders)) {
+          matched = true;
+          matchedFields.push('Resp-Headers');
+        }
+        if (contentSearchScope.responseBody && matcher.test(parsed.responseBody)) {
+          matched = true;
+          matchedFields.push('Resp-Body');
+        }
+
+        // Store for match indicators
+        if (contentSearchShowMatches && matched) {
+          request._matchedFields = matchedFields;
+        } else {
+          delete request._matchedFields;
+        }
+
+        return matched;
+      }
+
+      function renderContentSearchUI() {
+        const container = document.getElementById("contentSearchContainer");
+        container.innerHTML = "";
+        if (!contentSearchPopupOpen) {
+          container.classList.add("hidden");
+          return;
+        }
+        container.classList.remove("hidden");
+
+        // Overlay background
+        const overlay = document.createElement("div");
+        overlay.style.position = "fixed";
+        overlay.style.top = "0";
+        overlay.style.left = "0";
+        overlay.style.width = "100vw";
+        overlay.style.height = "100vh";
+        overlay.style.background = "rgba(0,0,0,0.25)";
+        overlay.style.zIndex = "1000";
+        overlay.onclick = function(e) {
+          if (e.target === overlay) {
+            contentSearchPopupOpen = false;
+            renderContentSearchUI();
+          }
+        };
+        container.appendChild(overlay);
+
+        // Popup panel
+        const popup = document.createElement("div");
+        popup.style.position = "fixed";
+        popup.style.top = "90px";
+        popup.style.left = "50%";
+        popup.style.transform = "translateX(-50%)";
+        popup.style.background = "#23272e";
+        popup.style.border = "1.5px solid #4a9eff";
+        popup.style.borderRadius = "10px";
+        popup.style.padding = "28px 32px 22px 32px";
+        popup.style.zIndex = "1001";
+        popup.style.minWidth = "400px";
+        popup.style.maxHeight = "600px";
+        popup.style.boxShadow = "0 8px 32px #000a";
+        popup.style.overflow = "auto";
+
+        // Title and close
+        const titleRow = document.createElement("div");
+        titleRow.style.display = "flex";
+        titleRow.style.justifyContent = "space-between";
+        titleRow.style.alignItems = "center";
+        titleRow.style.marginBottom = "18px";
+        const title = document.createElement("span");
+        title.textContent = "Content Search";
+        title.style.fontWeight = "bold";
+        title.style.fontSize = "1.15em";
+        title.style.color = "#4a9eff";
+        titleRow.appendChild(title);
+        const closeBtn = document.createElement("button");
+        closeBtn.innerHTML = "&#10006;";
+        closeBtn.title = "Close";
+        closeBtn.style.background = "none";
+        closeBtn.style.border = "none";
+        closeBtn.style.color = "#aaa";
+        closeBtn.style.fontSize = "1.2em";
+        closeBtn.style.cursor = "pointer";
+        closeBtn.onclick = function() {
+          contentSearchPopupOpen = false;
+          renderContentSearchUI();
+        };
+        titleRow.appendChild(closeBtn);
+        popup.appendChild(titleRow);
+
+        // Search pattern input
+        const patternLabel = document.createElement("label");
+        patternLabel.textContent = "Search Pattern:";
+        patternLabel.style.fontWeight = "bold";
+        patternLabel.style.color = "#4a9eff";
+        patternLabel.style.display = "block";
+        patternLabel.style.marginBottom = "6px";
+        popup.appendChild(patternLabel);
+
+        const patternInput = document.createElement("input");
+        patternInput.type = "text";
+        patternInput.className = "content-search-input";
+        patternInput.value = contentSearchPattern;
+        patternInput.placeholder = "Enter search pattern...";
+        popup.appendChild(patternInput);
+
+        // Options row: Use Regex and Case Sensitive
+        const optionsDiv = document.createElement("div");
+        optionsDiv.className = "search-options";
+
+        const regexCheckbox = document.createElement("input");
+        regexCheckbox.type = "checkbox";
+        regexCheckbox.id = "contentSearchRegex";
+        regexCheckbox.checked = contentSearchIsRegex;
+        regexCheckbox.style.marginRight = "6px";
+        const regexLabel = document.createElement("label");
+        regexLabel.htmlFor = "contentSearchRegex";
+        regexLabel.textContent = "Use Regex";
+        regexLabel.style.cursor = "pointer";
+
+        const caseCheckbox = document.createElement("input");
+        caseCheckbox.type = "checkbox";
+        caseCheckbox.id = "contentSearchCase";
+        caseCheckbox.checked = contentSearchCaseSensitive;
+        caseCheckbox.style.marginRight = "6px";
+        const caseLabel = document.createElement("label");
+        caseLabel.htmlFor = "contentSearchCase";
+        caseLabel.textContent = "Case Sensitive";
+        caseLabel.style.cursor = "pointer";
+
+        optionsDiv.appendChild(regexCheckbox);
+        optionsDiv.appendChild(regexLabel);
+        optionsDiv.appendChild(caseCheckbox);
+        optionsDiv.appendChild(caseLabel);
+        popup.appendChild(optionsDiv);
+
+        // Search scope section
+        const scopeTitle = document.createElement("div");
+        scopeTitle.className = "search-section-title";
+        scopeTitle.textContent = "Search In: (check/uncheck to filter)";
+        popup.appendChild(scopeTitle);
+
+        const scopeList = document.createElement("div");
+        scopeList.className = "search-scope-list";
+
+        // Create scope checkboxes
+        const scopes = [
+          { key: 'requestMethod', label: 'Request Method' },
+          { key: 'requestHeaders', label: 'Request Headers' },
+          { key: 'requestBody', label: 'Request Body' },
+          { key: 'responseHeaders', label: 'Response Headers' },
+          { key: 'responseBody', label: 'Response Body' }
+        ];
+
+        scopes.forEach(scope => {
+          const scopeDiv = document.createElement('div');
+          const checkbox = document.createElement('input');
+          checkbox.type = 'checkbox';
+          checkbox.id = 'scope_' + scope.key;
+          checkbox.checked = contentSearchScope[scope.key];
+          checkbox.style.marginRight = '6px';
+          checkbox.dataset.scopeKey = scope.key;
+
+          const label = document.createElement('label');
+          label.htmlFor = 'scope_' + scope.key;
+          label.textContent = scope.label;
+          label.className = 'search-scope-label';
+          label.style.cursor = 'pointer';
+
+          scopeDiv.appendChild(checkbox);
+          scopeDiv.appendChild(label);
+          scopeList.appendChild(scopeDiv);
+        });
+
+        popup.appendChild(scopeList);
+
+        // Buttons
+        const buttonsDiv = document.createElement("div");
+        buttonsDiv.className = "search-buttons";
+
+        const applyBtn = document.createElement("button");
+        applyBtn.className = "search-btn";
+        applyBtn.textContent = "Apply";
+        applyBtn.onclick = function() {
+          // Update state from inputs
+          contentSearchPattern = patternInput.value;
+          contentSearchIsRegex = regexCheckbox.checked;
+          contentSearchCaseSensitive = caseCheckbox.checked;
+
+          // Update scope from checkboxes
+          scopeList.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+            const key = cb.dataset.scopeKey;
+            if (key) {
+              contentSearchScope[key] = cb.checked;
+            }
+          });
+
+          // Re-render table with new filter
+          displayRequests();
+        };
+
+        const closeButton = document.createElement("button");
+        closeButton.className = "search-btn";
+        closeButton.textContent = "Close";
+        closeButton.onclick = function() {
+          contentSearchPopupOpen = false;
+          renderContentSearchUI();
+        };
+
+        buttonsDiv.appendChild(applyBtn);
+        buttonsDiv.appendChild(closeButton);
+        popup.appendChild(buttonsDiv);
+
+        container.appendChild(popup);
+
+        // Focus on pattern input
+        setTimeout(() => patternInput.focus(), 100);
+
+        // Add escape key handler
+        const escapeHandler = function(e) {
+          if (e.key === 'Escape' && contentSearchPopupOpen) {
+            contentSearchPopupOpen = false;
+            renderContentSearchUI();
+            document.removeEventListener('keydown', escapeHandler);
+          }
+        };
+        document.addEventListener('keydown', escapeHandler);
       }
 
       function getStatusClass(status) {
@@ -1361,10 +1839,31 @@
           }
         });
       }
+
+      // --- Content search popup trigger ---
+      function setupContentSearchPopupButton() {
+        const btn = document.getElementById('contentSearchBtn');
+        if (!btn) return;
+        btn.onclick = function(e) {
+          e.stopPropagation();
+          contentSearchPopupOpen = true;
+          renderContentSearchUI();
+        };
+        // Hide popup on outside click (except popup itself)
+        document.addEventListener('mousedown', function(ev) {
+          const popup = document.querySelector('#contentSearchContainer > div:last-child');
+          if (contentSearchPopupOpen && popup && !popup.contains(ev.target) && ev.target !== btn) {
+            contentSearchPopupOpen = false;
+            renderContentSearchUI();
+          }
+        });
+      }
+
       // Call after DOMContentLoaded
       document.addEventListener("DOMContentLoaded", function() {
         setupColumnResizing();
         setupHostFilterPopupButton();
+        setupContentSearchPopupButton();
         syncColgroupWidths();
         window.addEventListener('resize', syncColgroupWidths);
       });
